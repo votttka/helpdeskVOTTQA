@@ -10,6 +10,10 @@ export default defineConfig({
     strictPort: true,
     hmr: {
       port: 3000,
+      export default defineConfig({
+  base: '/helpdesk-prototype/',
+  // ...
+})
     },
   },
 });
