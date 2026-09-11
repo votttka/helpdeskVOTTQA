@@ -7,7 +7,8 @@ import { X, AlertTriangle } from 'lucide-react';
 const TRANSITIONS: Record<TicketStatus, TicketStatus[]> = {
   new: ['classification', 'closed'],
   classification: ['in_progress', 'new'],
-  in_progress: ['waiting', 'paused', 'closed'],
+  in_progress: ['waiting', 'paused', 'approval', 'closed'],
+  approval: ['in_progress', 'waiting', 'paused', 'closed'],
   waiting: ['in_progress', 'paused', 'closed'],
   paused: ['in_progress', 'closed'],
   closed: ['archived', 'in_progress'],

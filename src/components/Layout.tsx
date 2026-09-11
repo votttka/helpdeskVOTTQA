@@ -6,7 +6,7 @@ import {
   LayoutDashboard, Ticket, Filter, FolderOpen, Clock, PauseCircle,
   Archive, Settings, ChevronDown, Search, Bell, Plus, Menu, User,
   Shield, AlertTriangle, CheckCircle, X, Headphones, BarChart3,
-  LogOut, RefreshCw, ChevronRight
+  LogOut, RefreshCw, ChevronRight, Sparkles, Workflow
 } from 'lucide-react';
 
 const NAV_ITEMS = [
@@ -21,6 +21,10 @@ const NAV_ITEMS = [
     { label: 'Ждём ответа', icon: Clock, path: '/tickets?status=waiting' },
     { label: 'На паузе', icon: PauseCircle, path: '/tickets?status=paused' },
     { label: 'Архив', icon: Archive, path: '/tickets?status=archived' },
+  ]},
+  { group: 'Рабочие места', items: [
+    { label: 'Классификация', icon: Sparkles, path: '/classifier', roles: ['classifier', 'admin', 'lead'] },
+    { label: 'Сценарии', icon: Workflow, path: '/scenarios', roles: ['admin', 'lead', 'auditor'] },
   ]},
 ];
 
@@ -215,10 +219,13 @@ export function Layout({ children }: { children: React.ReactNode }) {
         style={{ width: sidebarWidth }}
       >
         <div className="p-4 flex flex-col gap-1 flex-1">
-          {NAV_ITEMS.map(group => (
+          {NAV_ITEMS.map(group => {
+            const visibleItems = group.items.filter(item => !('roles' in item) || (item as any).roles.includes(role));
+            if (visibleItems.length === 0) return null;
+            return (
             <div key={group.group} className="mb-4">
               {!sidebarCollapsed && <p className="text-[11px] font-semibold text-[#9CA3AF] uppercase tracking-wider px-3 mb-2">{group.group}</p>}
-              {group.items.map(item => {
+              {visibleItems.map(item => {
                 const isActive = location.pathname === item.path.split('?')[0] && (
                   !item.path.includes('?') || location.search.includes(item.path.split('?')[1] || '')
                 );
@@ -247,7 +254,8 @@ export function Layout({ children }: { children: React.ReactNode }) {
                 );
               })}
             </div>
-          ))}
+            );
+          })}
 
           {/* Admin section */}
           {hasPermission(role, 'settings') && (

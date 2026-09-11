@@ -1,12 +1,12 @@
 import React, { useState } from 'react';
 import { useApp } from '../App';
 import { useToast } from './Toast';
-import { STATUS_CONFIG, TicketStatus, hasPermission, ROLE_LABELS, Role, ROLE_PERMISSIONS } from '../store';
+import { STATUS_CONFIG, TicketStatus, hasPermission, ROLE_LABELS, Role, ROLE_PERMISSIONS, TAXONOMY_GROUPS, TAXONOMY_TYPES } from '../store';
 import {
   Save, RotateCcw, Check, X, Plus, GripVertical, ToggleLeft, ToggleRight, AlertTriangle
 } from 'lucide-react';
 
-const TABS = ['Статусы', 'Переходы', 'Автоматика', 'SLA', 'Воронки', 'Роли', 'Интеграции'];
+const TABS = ['Статусы', 'Переходы', 'Таксономия', 'Автоматика', 'SLA', 'Воронки', 'Сценарии', 'Роли', 'Интеграции'];
 
 export function SettingsPage() {
   const { settings, setSettings, role, tickets } = useApp();
@@ -110,6 +110,50 @@ export function SettingsPage() {
         </div>
       )}
 
+      {/* Taxonomy */}
+      {activeTab === 2 && (
+        <div className="bg-white rounded-2xl border border-[#E6EBF2] p-5">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-[16px] font-semibold text-[#111827]">Таксономия</h3>
+            {canEdit && <button className="h-9 px-3 rounded-xl bg-[#2563EB] text-white text-[13px] flex items-center gap-1.5 hover:bg-[#1D4ED8]"><Plus size={14} /> Добавить тип</button>}
+          </div>
+          <table className="w-full">
+            <thead>
+              <tr className="border-b border-[#E6EBF2]">
+                <th className="text-left text-[12px] font-semibold text-[#6B7280] pb-3">Группа</th>
+                <th className="text-left text-[12px] font-semibold text-[#6B7280] pb-3">Тип</th>
+                <th className="text-left text-[12px] font-semibold text-[#6B7280] pb-3">Плановое время</th>
+                <th className="text-left text-[12px] font-semibold text-[#6B7280] pb-3">Активность</th>
+              </tr>
+            </thead>
+            <tbody>
+              {TAXONOMY_GROUPS.map(g => (
+                <React.Fragment key={g.id}>
+                  <tr className="bg-[#F8FAFC]">
+                    <td colSpan={4} className="py-2 px-3 text-[12px] font-semibold text-[#111827]">
+                      <span className="w-2 h-2 rounded-full inline-block mr-2" style={{ backgroundColor: g.color }} />
+                      {g.name}
+                    </td>
+                  </tr>
+                  {TAXONOMY_TYPES.filter(t => t.groupId === g.id).map(t => (
+                    <tr key={t.id} className="border-b border-[#EEF2F7]">
+                      <td className="py-2 px-3"></td>
+                      <td className="py-2 px-3 text-[13px] text-[#111827]">{t.name}</td>
+                      <td className="py-2 px-3 text-[13px] text-[#6B7280]">{t.plannedTime} ч</td>
+                      <td className="py-2 px-3">
+                        <div className={`w-10 h-5 rounded-full flex items-center px-0.5 cursor-pointer ${t.active ? 'bg-[#2563EB]' : 'bg-[#E6EBF2]'}`}>
+                          <div className={`w-4 h-4 rounded-full bg-white shadow-sm transition-transform ${t.active ? 'translate-x-5' : ''}`} />
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </React.Fragment>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
       {/* Transitions */}
       {activeTab === 1 && (
         <div className="bg-white rounded-2xl border border-[#E6EBF2] p-5">
@@ -149,7 +193,7 @@ export function SettingsPage() {
       )}
 
       {/* Automation */}
-      {activeTab === 2 && (
+      {activeTab === 3 && (
         <div className="grid grid-cols-2 gap-4">
           {[
             { title: 'Автопереход из «Ждём ответа»', desc: 'Через N часов автоматически переходит в целевой статус', fields: [
@@ -189,7 +233,7 @@ export function SettingsPage() {
       )}
 
       {/* SLA */}
-      {activeTab === 3 && (
+      {activeTab === 4 && (
         <div className="space-y-4">
           <div className="bg-white rounded-2xl border border-[#E6EBF2] p-5">
             <h3 className="text-[16px] font-semibold text-[#111827] mb-4">Глобальные параметры SLA</h3>
@@ -255,7 +299,7 @@ export function SettingsPage() {
       )}
 
       {/* Funnels */}
-      {activeTab === 4 && (
+      {activeTab === 5 && (
         <div className="bg-white rounded-2xl border border-[#E6EBF2] p-5">
           <h3 className="text-[16px] font-semibold text-[#111827] mb-6">Воронка статусов</h3>
           <div className="flex items-center gap-2 overflow-x-auto pb-4">
@@ -276,7 +320,7 @@ export function SettingsPage() {
       )}
 
       {/* Roles */}
-      {activeTab === 5 && (
+      {activeTab === 7 && (
         <div className="bg-white rounded-2xl border border-[#E6EBF2] p-5">
           <h3 className="text-[16px] font-semibold text-[#111827] mb-4">Матрица прав ролей</h3>
           <div className="overflow-x-auto">
@@ -310,8 +354,19 @@ export function SettingsPage() {
         </div>
       )}
 
-      {/* Integrations */}
+      {/* Scenarios */}
       {activeTab === 6 && (
+        <div className="bg-white rounded-2xl border border-[#E6EBF2] p-5">
+          <h3 className="text-[16px] font-semibold text-[#111827] mb-4">Сценарии и воронки</h3>
+          <p className="text-[13px] text-[#6B7280] mb-4">Управление сценариями доступно в отдельном разделе.</p>
+          <button onClick={() => window.location.hash = '/scenarios'} className="h-10 px-4 rounded-xl bg-[#2563EB] text-white text-[14px] font-medium hover:bg-[#1D4ED8]">
+            Открыть раздел «Сценарии»
+          </button>
+        </div>
+      )}
+
+      {/* Integrations */}
+      {activeTab === 8 && (
         <div className="grid grid-cols-3 gap-4">
           {[
             { name: 'Телефония', desc: 'Интеграция с IP-АТС для записи звонков' },
@@ -351,7 +406,8 @@ function isTransitionAllowed(from: TicketStatus, to: TicketStatus): boolean {
   const allowed: Record<TicketStatus, TicketStatus[]> = {
     new: ['classification', 'closed'],
     classification: ['in_progress', 'new'],
-    in_progress: ['waiting', 'paused', 'closed'],
+    in_progress: ['waiting', 'paused', 'approval', 'closed'],
+    approval: ['in_progress', 'waiting', 'paused', 'closed'],
     waiting: ['in_progress', 'paused', 'closed'],
     paused: ['in_progress', 'closed'],
     closed: ['archived', 'in_progress'],
