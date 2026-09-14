@@ -1,15 +1,15 @@
 import React, { useState } from 'react';
 import { useApp } from '../App';
-import { STATUS_CONFIG, TicketStatus, formatDate } from '../store';
+import { STATUS_CONFIG, SOURCE_CONFIG, TicketStatus, formatDate, EMPLOYEES, calculateEmployeeKZ } from '../store';
 import { useNavigate } from 'react-router-dom';
 import {
   Ticket, AlertTriangle, Clock, CheckCircle, RefreshCw, Download,
-  TrendingUp, ArrowUpRight, ArrowDownRight
+  TrendingUp, ArrowUpRight, ArrowDownRight, Phone, Sparkles
 } from 'lucide-react';
-import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
+import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, BarChart, Bar } from 'recharts';
 
 export function Dashboard() {
-  const { tickets, setShowNewTicket } = useApp();
+  const { tickets, setShowNewTicket, scenarios } = useApp();
   const navigate = useNavigate();
   const now = Date.now();
 
@@ -25,6 +25,12 @@ export function Dashboard() {
     const today = new Date(); today.setHours(0, 0, 0, 0);
     return t.closedAt >= today.getTime();
   }).length;
+  const uspToday = tickets.filter(t => t.source === 'usp' && !['closed', 'archived'].includes(t.status)).length;
+  const unassigned = tickets.filter(t => !t.assigneeId && !['closed', 'archived'].includes(t.status)).length;
+  const untyped = tickets.filter(t => !t.taxonomyTypeId && !['closed', 'archived'].includes(t.status)).length;
+  const activeScenarios = scenarios.filter(s => s.active);
+  const totalCalls = tickets.reduce((sum, t) => sum + t.calls.length, 0);
+  const analyzedCalls = tickets.reduce((sum, t) => sum + t.calls.filter(c => c.analysisStatus === 'analyzed').length, 0);
 
   // Chart data - last 7 days
   const chartData = Array.from({ length: 7 }, (_, i) => {
@@ -106,6 +112,50 @@ export function Dashboard() {
             </div>
           );
         })}
+      </div>
+
+      {/* Source distribution + Active scenarios */}
+      <div className="grid grid-cols-3 gap-4 mb-6">
+        <div className="bg-white rounded-2xl p-5 border border-[#E6EBF2]">
+          <h3 className="text-[15px] font-semibold text-[#111827] mb-3">Источники заявок</h3>
+          <div className="space-y-2">
+            {(Object.entries(SOURCE_CONFIG) as any[]).map(([key, cfg]) => {
+              const count = tickets.filter(t => t.source === key && !['closed', 'archived'].includes(t.status)).length;
+              return (
+                <div key={key} className="flex items-center gap-2">
+                  <span className="text-[14px]">{cfg.icon}</span>
+                  <span className="text-[12px] text-[#6B7280] flex-1">{cfg.label}</span>
+                  <span className="text-[12px] font-semibold text-[#111827]">{count}</span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+        <div className="bg-white rounded-2xl p-5 border border-[#E6EBF2]">
+          <h3 className="text-[15px] font-semibold text-[#111827] mb-3">Активные сценарии</h3>
+          {activeScenarios.length === 0 ? (
+            <p className="text-[13px] text-[#9CA3AF]">Нет активных сценариев</p>
+          ) : (
+            <div className="space-y-2">
+              {activeScenarios.map(s => (
+                <div key={s.id} className="p-2 rounded-lg bg-[#ECFDF5] border border-[#A7F3D0]">
+                  <p className="text-[13px] font-medium text-[#047857]">{s.name}</p>
+                  <p className="text-[11px] text-[#065F46]">Затронуто: {s.affectedCount} заявок</p>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+        <div className="bg-white rounded-2xl p-5 border border-[#E6EBF2]">
+          <h3 className="text-[15px] font-semibold text-[#111827] mb-3 flex items-center gap-2">
+            <Phone size={16} /> Звонки
+          </h3>
+          <div className="space-y-2">
+            <div className="flex justify-between"><span className="text-[12px] text-[#6B7280]">Всего звонков:</span><span className="text-[14px] font-bold text-[#111827]">{totalCalls}</span></div>
+            <div className="flex justify-between"><span className="text-[12px] text-[#6B7280]">AI-проанализировано:</span><span className="text-[14px] font-bold text-[#8B5CF6]">{analyzedCalls}</span></div>
+            <div className="flex justify-between"><span className="text-[12px] text-[#6B7280]">Средняя длительность:</span><span className="text-[14px] font-bold text-[#111827]">10 мин</span></div>
+          </div>
+        </div>
       </div>
 
       {/* Charts */}

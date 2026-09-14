@@ -1,10 +1,10 @@
 import React, { useState, useEffect, useCallback, createContext, useContext } from 'react';
-import { HashRouter, Routes, Route, useNavigate, useLocation, Navigate } from 'react-router-dom';
+import { HashRouter, Routes, Route, Navigate } from 'react-router-dom';
 import {
-  Ticket, Role, Notification, Settings, TicketStatus,
+  Ticket, Role, Notification, Settings, TicketStatus, Scenario,
   loadTickets, saveTickets, loadRole, saveRole, loadSettings, saveSettings,
-  loadNotifications, saveNotifications, resetDemoData, getNextTicketNumber,
-  hasPermission, STATUS_CONFIG, ROLE_LABELS, formatDate
+  loadNotifications, saveNotifications, resetDemoData, loadScenarios, saveScenarios,
+  ROLE_LABELS, STATUS_CONFIG
 } from './store';
 import { Layout } from './components/Layout';
 import { Dashboard } from './components/Dashboard';
@@ -14,7 +14,10 @@ import { SettingsPage } from './components/Settings';
 import { NewTicketDrawer } from './components/NewTicketDrawer';
 import { StatusChangeModal } from './components/StatusChangeModal';
 import { TransferModal } from './components/TransferModal';
-import { ToastContext, ToastProvider } from './components/Toast';
+import { ClassifierWorkspace } from './components/ClassifierWorkspace';
+import { ScenariosPage } from './components/ScenariosPage';
+import { SuflerDrawer } from './components/SuflerDrawer';
+import { ToastProvider } from './components/Toast';
 
 interface AppState {
   tickets: Ticket[];
@@ -25,6 +28,8 @@ interface AppState {
   setSettings: (s: Settings) => void;
   notifications: Notification[];
   setNotifications: (fn: (prev: Notification[]) => Notification[]) => void;
+  scenarios: Scenario[];
+  setScenarios: (fn: (prev: Scenario[]) => Scenario[]) => void;
   sidebarCollapsed: boolean;
   setSidebarCollapsed: (v: boolean) => void;
   showNewTicket: boolean;
@@ -33,6 +38,8 @@ interface AppState {
   setStatusChangeTarget: (v: { ticket: Ticket; from: TicketStatus } | null) => void;
   transferTarget: Ticket | null;
   setTransferTarget: (v: Ticket | null) => void;
+  suflerTarget: Ticket | null;
+  setSuflerTarget: (v: Ticket | null) => void;
 }
 
 export const AppContext = createContext<AppState>({} as AppState);
@@ -43,35 +50,23 @@ function AppContent() {
   const [role, setRoleRaw] = useState<Role>(() => loadRole());
   const [settings, setSettingsRaw] = useState<Settings>(() => loadSettings());
   const [notifications, setNotificationsRaw] = useState<Notification[]>(() => loadNotifications());
+  const [scenarios, setScenariosRaw] = useState<Scenario[]>(() => loadScenarios());
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [showNewTicket, setShowNewTicket] = useState(false);
   const [statusChangeTarget, setStatusChangeTarget] = useState<{ ticket: Ticket; from: TicketStatus } | null>(null);
   const [transferTarget, setTransferTarget] = useState<Ticket | null>(null);
+  const [suflerTarget, setSuflerTarget] = useState<Ticket | null>(null);
 
   const setTickets = useCallback((fn: (prev: Ticket[]) => Ticket[]) => {
-    setTicketsRaw(prev => {
-      const next = fn(prev);
-      saveTickets(next);
-      return next;
-    });
+    setTicketsRaw(prev => { const next = fn(prev); saveTickets(next); return next; });
   }, []);
-
-  const setRole = useCallback((r: Role) => {
-    setRoleRaw(r);
-    saveRole(r);
-  }, []);
-
-  const setSettings = useCallback((s: Settings) => {
-    setSettingsRaw(s);
-    saveSettings(s);
-  }, []);
-
+  const setRole = useCallback((r: Role) => { setRoleRaw(r); saveRole(r); }, []);
+  const setSettings = useCallback((s: Settings) => { setSettingsRaw(s); saveSettings(s); }, []);
   const setNotifications = useCallback((fn: (prev: Notification[]) => Notification[]) => {
-    setNotificationsRaw(prev => {
-      const next = fn(prev);
-      saveNotifications(next);
-      return next;
-    });
+    setNotificationsRaw(prev => { const next = fn(prev); saveNotifications(next); return next; });
+  }, []);
+  const setScenarios = useCallback((fn: (prev: Scenario[]) => Scenario[]) => {
+    setScenariosRaw(prev => { const next = fn(prev); saveScenarios(next); return next; });
   }, []);
 
   // Auto-transition engine
@@ -81,45 +76,15 @@ function AppContent() {
       setTickets(prev => {
         let changed = false;
         const next = prev.map(t => {
-          // Auto-transition from waiting
           if (t.status === 'waiting' && t.autoTransitionAt && now >= t.autoTransitionAt) {
             changed = true;
-            return {
-              ...t,
-              status: 'in_progress' as TicketStatus,
-              autoTransitionAt: undefined,
-              slaPaused: false,
-              updatedAt: now,
-              auditLog: [...t.auditLog, {
-                id: crypto.randomUUID?.() || Math.random().toString(36),
-                action: 'Автопереход',
-                author: 'Система / Автоматика',
-                timestamp: now,
-                oldValue: 'Ждём ответа',
-                newValue: 'В работе',
-                comment: 'Истекло время ожидания'
-              }]
-            };
+            return { ...t, status: 'in_progress' as TicketStatus, autoTransitionAt: undefined, slaPaused: false, updatedAt: now,
+              auditLog: [...t.auditLog, { id: Math.random().toString(36), action: 'Автопереход', author: 'Система / Автоматика', timestamp: now, oldValue: 'Ждём ответа', newValue: 'В работе', comment: 'Истекло время ожидания' }] };
           }
-          // Auto-return from pause
           if (t.status === 'paused' && t.pauseUntil && now >= t.pauseUntil) {
             changed = true;
-            return {
-              ...t,
-              status: 'in_progress' as TicketStatus,
-              pauseUntil: undefined,
-              slaPaused: false,
-              updatedAt: now,
-              auditLog: [...t.auditLog, {
-                id: crypto.randomUUID?.() || Math.random().toString(36),
-                action: 'Возврат с паузы',
-                author: 'Система / Автоматика',
-                timestamp: now,
-                oldValue: 'Пауза',
-                newValue: 'В работе',
-                comment: 'Срок паузы истёк'
-              }]
-            };
+            return { ...t, status: 'in_progress' as TicketStatus, pauseUntil: undefined, slaPaused: false, updatedAt: now,
+              auditLog: [...t.auditLog, { id: Math.random().toString(36), action: 'Возврат с паузы', author: 'Система / Автоматика', timestamp: now, oldValue: 'Пауза', newValue: 'В работе', comment: 'Срок паузы истёк' }] };
           }
           return t;
         });
@@ -129,25 +94,17 @@ function AppContent() {
     return () => clearInterval(interval);
   }, [setTickets]);
 
-  // Timer update (visual only)
   const [, setTick] = useState(0);
-  useEffect(() => {
-    const interval = setInterval(() => setTick(t => t + 1), 5000);
-    return () => clearInterval(interval);
-  }, []);
+  useEffect(() => { const interval = setInterval(() => setTick(t => t + 1), 5000); return () => clearInterval(interval); }, []);
 
-  const handleReset = () => {
-    resetDemoData();
-    setTicketsRaw(loadTickets());
-    setSettingsRaw(loadSettings());
-    setNotificationsRaw(loadNotifications());
-  };
+  const handleReset = () => { resetDemoData(); setTicketsRaw(loadTickets()); setSettingsRaw(loadSettings()); setNotificationsRaw(loadNotifications()); setScenariosRaw(loadScenarios()); };
 
   const value: AppState = {
     tickets, setTickets, role, setRole, settings, setSettings,
-    notifications, setNotifications, sidebarCollapsed, setSidebarCollapsed,
+    notifications, setNotifications, scenarios, setScenarios,
+    sidebarCollapsed, setSidebarCollapsed,
     showNewTicket, setShowNewTicket, statusChangeTarget, setStatusChangeTarget,
-    transferTarget, setTransferTarget
+    transferTarget, setTransferTarget, suflerTarget, setSuflerTarget,
   };
 
   return (
@@ -158,23 +115,21 @@ function AppContent() {
             <Route path="/" element={<Dashboard />} />
             <Route path="/tickets" element={<TicketList />} />
             <Route path="/tickets/:id" element={<TicketDetail />} />
+            <Route path="/classifier" element={<ClassifierWorkspace />} />
+            <Route path="/scenarios" element={<ScenariosPage />} />
             <Route path="/settings" element={<SettingsPage />} />
-            <Route path="/funnel" element={<Dashboard />} />
             <Route path="*" element={<Navigate to="/" />} />
           </Routes>
         </Layout>
         {showNewTicket && <NewTicketDrawer />}
         {statusChangeTarget && <StatusChangeModal />}
         {transferTarget && <TransferModal />}
+        {suflerTarget && <SuflerDrawer />}
       </ToastProvider>
     </AppContext.Provider>
   );
 }
 
 export default function App() {
-  return (
-    <HashRouter>
-      <AppContent />
-    </HashRouter>
-  );
+  return (<HashRouter><AppContent /></HashRouter>);
 }

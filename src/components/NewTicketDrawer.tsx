@@ -39,6 +39,8 @@ export function NewTicketDrawer() {
       line,
       assignee: assignee || 'Не назначен',
       channel,
+      source: 'manual',
+      contractType: clientType === 'internal' ? 'internal' : 'commercial',
       slaExternal: 480,
       slaInternal: 240,
       slaPaused: false,
@@ -51,6 +53,9 @@ export function NewTicketDrawer() {
         author: 'Текущий пользователь',
         timestamp: now,
       }],
+      calls: [],
+      connections: [],
+      subtasks: [],
     };
     setTickets(prev => [newTicket, ...prev]);
     setShowNewTicket(false);

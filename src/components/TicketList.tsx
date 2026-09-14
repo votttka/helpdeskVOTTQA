@@ -1,11 +1,11 @@
 import React, { useState, useMemo } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useApp } from '../App';
-import { Ticket, TicketStatus, STATUS_CONFIG, TYPE_LABELS, PRIORITY_LABELS, formatDate, hasPermission } from '../store';
+import { Ticket, TicketStatus, TicketSource, ExecutorPriority, STATUS_CONFIG, SOURCE_CONFIG, EXECUTOR_PRIORITY_CONFIG, TYPE_LABELS, PRIORITY_LABELS, getTaxonomyType, getTaxonomyGroup, formatDate, hasPermission } from '../store';
 import {
   Search, ChevronDown, RotateCcw, Download,
   MoreHorizontal, Eye, UserPlus, ArrowRightLeft,
-  Copy, Plus
+  Copy, Plus, Lock
 } from 'lucide-react';
 
 export function TicketList() {
@@ -17,6 +17,8 @@ export function TicketList() {
   const [typeFilter, setTypeFilter] = useState('');
   const [assigneeFilter, setAssigneeFilter] = useState('');
   const [clientTypeFilter, setClientTypeFilter] = useState('');
+  const [sourceFilter, setSourceFilter] = useState<TicketSource | ''>('');
+  const [priorityFilter, setPriorityFilter] = useState<ExecutorPriority | ''>('');
   const [selected, setSelected] = useState<string[]>([]);
   const [contextMenu, setContextMenu] = useState<string | null>(null);
   const [showStatusDropdown, setShowStatusDropdown] = useState(false);
@@ -54,9 +56,11 @@ export function TicketList() {
     if (typeFilter) result = result.filter(t => t.type === typeFilter);
     if (assigneeFilter) result = result.filter(t => t.assignee === assigneeFilter);
     if (clientTypeFilter) result = result.filter(t => t.clientType === clientTypeFilter);
+    if (sourceFilter) result = result.filter(t => t.source === sourceFilter);
+    if (priorityFilter) result = result.filter(t => (t.executorPriority || 'none') === priorityFilter);
 
     return result;
-  }, [tickets, search, statusFilter, typeFilter, assigneeFilter, clientTypeFilter, urlStatus, urlMine, urlSla, now]);
+  }, [tickets, search, statusFilter, typeFilter, assigneeFilter, clientTypeFilter, sourceFilter, priorityFilter, urlStatus, urlMine, urlSla, now]);
 
   const paginatedTickets = filteredTickets.slice((page - 1) * pageSize, page * pageSize);
   const totalPages = Math.ceil(filteredTickets.length / pageSize);
@@ -161,6 +165,18 @@ export function TicketList() {
               className={`h-10 px-3 text-[13px] ${clientTypeFilter === 'internal' ? 'bg-[#EFF6FF] text-[#1D4ED8]' : 'bg-white text-[#6B7280]'}`}>Внутренние</button>
           </div>
 
+          <select value={sourceFilter} onChange={e => setSourceFilter(e.target.value as any)}
+            className="h-10 px-3 rounded-xl border border-[#E6EBF2] text-[14px] bg-white">
+            <option value="">Все источники</option>
+            {(Object.entries(SOURCE_CONFIG) as any[]).map(([k, v]) => <option key={k} value={k}>{v.icon} {v.label}</option>)}
+          </select>
+
+          <select value={priorityFilter} onChange={e => setPriorityFilter(e.target.value as any)}
+            className="h-10 px-3 rounded-xl border border-[#E6EBF2] text-[14px] bg-white">
+            <option value="">Все приоритеты</option>
+            {(Object.entries(EXECUTOR_PRIORITY_CONFIG) as any[]).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
+          </select>
+
           <div className="flex-1" />
 
           <button onClick={resetFilters} className="h-10 px-3 rounded-xl text-[13px] text-[#6B7280] hover:bg-[#F3F6FB] flex items-center gap-1.5">
@@ -169,6 +185,13 @@ export function TicketList() {
           <button className="h-10 px-3 rounded-xl text-[13px] text-[#6B7280] hover:bg-[#F3F6FB] flex items-center gap-1.5">
             <Download size={14} /> Экспорт
           </button>
+        </div>
+        {/* Quick chips */}
+        <div className="flex items-center gap-2 mt-2 flex-wrap">
+          <button onClick={() => setSourceFilter('usp')} className={`h-7 px-2.5 rounded-full text-[12px] font-medium ${sourceFilter === 'usp' ? 'bg-[#ECFEFF] text-[#0E7490]' : 'bg-white border border-[#E6EBF2] text-[#6B7280] hover:bg-[#F8FAFF]'}`}>🏛 УСП</button>
+          <button onClick={() => {/* filter unassigned */}} className="h-7 px-2.5 rounded-full bg-white border border-[#E6EBF2] text-[12px] text-[#6B7280] hover:bg-[#F8FAFF]">Без исполнителя</button>
+          <button onClick={() => {/* filter untyped */}} className="h-7 px-2.5 rounded-full bg-white border border-[#E6EBF2] text-[12px] text-[#6B7280] hover:bg-[#F8FAFF]">Без типа</button>
+          <button onClick={() => setPriorityFilter('now')} className={`h-7 px-2.5 rounded-full text-[12px] font-medium ${priorityFilter === 'now' ? 'bg-[#FEECEC] text-[#B91C1C]' : 'bg-white border border-[#E6EBF2] text-[#6B7280] hover:bg-[#F8FAFF]'}`}>🔥 Сейчас</button>
         </div>
       </div>
 
@@ -195,13 +218,14 @@ export function TicketList() {
                     onChange={toggleAll} className="w-4 h-4 rounded border-[#E6EBF2]" />
                 </th>
                 <th className="text-left text-[12px] font-semibold text-[#6B7280] px-2 py-3 w-[110px]">ID</th>
-                <th className="text-left text-[12px] font-semibold text-[#6B7280] px-2 py-3 min-w-[280px]">Тема</th>
-                <th className="text-left text-[12px] font-semibold text-[#6B7280] px-2 py-3 w-[180px]">Клиент</th>
+                <th className="text-left text-[12px] font-semibold text-[#6B7280] px-2 py-3 min-w-[240px]">Тема</th>
+                <th className="text-left text-[12px] font-semibold text-[#6B7280] px-2 py-3 w-[110px]">Источник</th>
                 <th className="text-left text-[12px] font-semibold text-[#6B7280] px-2 py-3 w-[170px]">Статус</th>
+                <th className="text-left text-[12px] font-semibold text-[#6B7280] px-2 py-3 w-[120px]">Приоритет</th>
+                <th className="text-left text-[12px] font-semibold text-[#6B7280] px-2 py-3 w-[160px]">Таксономия</th>
                 <th className="text-left text-[12px] font-semibold text-[#6B7280] px-2 py-3 w-[130px]">SLA</th>
-                <th className="text-left text-[12px] font-semibold text-[#6B7280] px-2 py-3 w-[140px]">Тип</th>
-                <th className="text-left text-[12px] font-semibold text-[#6B7280] px-2 py-3 w-[180px]">Исполнитель</th>
-                <th className="text-left text-[12px] font-semibold text-[#6B7280] px-2 py-3 w-[140px]">Создана</th>
+                <th className="text-left text-[12px] font-semibold text-[#6B7280] px-2 py-3 w-[160px]">Исполнитель</th>
+                <th className="text-left text-[12px] font-semibold text-[#6B7280] px-2 py-3 w-[130px]">Создана</th>
                 <th className="w-14 px-2 py-3"></th>
               </tr>
             </thead>
@@ -222,10 +246,16 @@ export function TicketList() {
                       <span className="font-mono text-[12px] text-[#6B7280]">{t.number}</span>
                     </td>
                     <td className="px-2 py-3">
-                      <p className="text-[14px] text-[#111827] font-medium truncate max-w-[320px]">{t.subject}</p>
+                      <p className="text-[14px] text-[#111827] font-medium truncate max-w-[280px]">{t.subject}</p>
                       <p className="text-[12px] text-[#9CA3AF] mt-0.5">{t.client}</p>
                     </td>
-                    <td className="px-2 py-3 text-[13px] text-[#6B7280]">{t.client}</td>
+                    <td className="px-2 py-3">
+                      {(() => { const src = SOURCE_CONFIG[t.source]; return (
+                        <span className="inline-flex items-center gap-1 h-6 px-2 rounded-md text-[11px] font-medium" style={{ backgroundColor: src.soft, color: src.text }}>
+                          {src.icon} {src.label}
+                        </span>
+                      ); })()}
+                    </td>
                     <td className="px-2 py-3">
                       <span className={`inline-flex items-center gap-1.5 h-7 px-2.5 rounded-full text-[12px] font-semibold ${isOverdue ? 'border border-[#FCA5A5]' : ''}`}
                         style={{ backgroundColor: isOverdue ? '#FEECEC' : sc.soft, color: isOverdue ? '#B91C1C' : sc.text }}>
@@ -234,11 +264,25 @@ export function TicketList() {
                       </span>
                     </td>
                     <td className="px-2 py-3">
+                      {(() => { const p = EXECUTOR_PRIORITY_CONFIG[t.executorPriority || 'none']; return (
+                        <span className="inline-flex items-center gap-1 h-6 px-2 rounded-full text-[11px] font-semibold" style={{ backgroundColor: p.soft, color: p.color }}>
+                          {p.label}
+                        </span>
+                      ); })()}
+                    </td>
+                    <td className="px-2 py-3">
+                      {(() => { const tax = getTaxonomyType(t.taxonomyTypeId); const grp = tax ? getTaxonomyGroup(tax.groupId) : null; return tax ? (
+                        <div>
+                          <p className="text-[11px] text-[#6B7280]">{grp?.name}</p>
+                          <p className="text-[12px] text-[#111827] font-medium">{tax.name}</p>
+                        </div>
+                      ) : <span className="text-[11px] text-[#EF4444]">Не задан</span>; })()}
+                    </td>
+                    <td className="px-2 py-3">
                       <span className="text-[12px] font-medium px-2 py-1 rounded-lg" style={{ backgroundColor: sla.bg, color: sla.color }}>
                         {sla.label}
                       </span>
                     </td>
-                    <td className="px-2 py-3 text-[13px] text-[#6B7280]">{TYPE_LABELS[t.type]}</td>
                     <td className="px-2 py-3 text-[13px] text-[#111827]">{t.assignee}</td>
                     <td className="px-2 py-3 text-[12px] text-[#6B7280]">{formatDate(t.createdAt)}</td>
                     <td className="px-2 py-3" onClick={e => e.stopPropagation()}>

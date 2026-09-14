@@ -2,18 +2,19 @@ import React, { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useApp } from '../App';
 import { useToast } from './Toast';
-import { Ticket, TicketStatus, STATUS_CONFIG, TYPE_LABELS, PRIORITY_LABELS, formatDate, formatTimeRemaining, hasPermission } from '../store';
+import { Ticket, TicketStatus, STATUS_CONFIG, TYPE_LABELS, PRIORITY_LABELS, SOURCE_CONFIG, EXECUTOR_PRIORITY_CONFIG, CONTRACT_LABELS, getTaxonomyType, getTaxonomyGroup, STATUS_WEIGHTS, formatDate, formatTimeRemaining, hasPermission } from '../store';
 import {
   ArrowLeft, MoreHorizontal, ArrowRightLeft, Pause, Play, CheckCircle,
   Archive, Copy, Link, Send, StickyNote, Phone, Monitor, Paperclip,
   Smile, ChevronDown, Clock, AlertTriangle, User, Settings, Zap,
-  Globe, Database, Calculator, Key, BarChart3, BookOpen, Shield
+  Globe, Database, Calculator, Key, BarChart3, BookOpen, Shield,
+  Sparkles, Building2, Lock
 } from 'lucide-react';
 
 export function TicketDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { tickets, setTickets, role, setStatusChangeTarget, setTransferTarget } = useApp();
+  const { tickets, setTickets, role, setStatusChangeTarget, setTransferTarget, setSuflerTarget } = useApp();
   const { addToast } = useToast();
   const [activeTab, setActiveTab] = useState<'overview' | 'interactions' | 'audit' | 'related'>('overview');
   const [showMore, setShowMore] = useState(false);
@@ -88,13 +89,29 @@ export function TicketDetail() {
           <div className="bg-white rounded-2xl border border-[#E6EBF2] p-5 mb-4 shadow-[0_1px_2px_rgba(17,24,39,0.04)]">
             <div className="flex items-center gap-2 mb-3 flex-wrap">
               <span className="font-mono text-[13px] text-[#6B7280]">{ticket.number}</span>
+              {/* Source badge */}
+              {(() => { const src = SOURCE_CONFIG[ticket.source]; return (
+                <span className="inline-flex items-center gap-1 h-6 px-2 rounded-md text-[11px] font-medium" style={{ backgroundColor: src.soft, color: src.text, border: ticket.source === 'usp' ? '1px solid #A5F3FC' : 'none' }}>
+                  {src.icon} {src.label}{ticket.uspExternalNumber && ` • ${ticket.uspExternalNumber}`}
+                </span>
+              ); })()}
               <span className={`inline-flex items-center gap-1.5 h-7 px-2.5 rounded-full text-[12px] font-semibold ${isOverdue ? 'border border-[#FCA5A5]' : ''}`}
                 style={{ backgroundColor: isOverdue ? '#FEECEC' : sc.soft, color: isOverdue ? '#B91C1C' : sc.text }}>
                 <span className="w-2 h-2 rounded-full" style={{ backgroundColor: isOverdue ? '#EF4444' : sc.color }} />
                 {isOverdue ? 'Просрочено' : sc.label}
               </span>
+              {/* Executor priority */}
+              {(() => { const p = EXECUTOR_PRIORITY_CONFIG[ticket.executorPriority || 'none']; return (
+                <span className="inline-flex items-center gap-1 h-6 px-2 rounded-full text-[11px] font-semibold" style={{ backgroundColor: p.soft, color: p.color }}>
+                  {p.label}
+                </span>
+              ); })()}
               <span className={`h-6 px-2 rounded-md text-[11px] font-medium ${ticket.clientType === 'external' ? 'bg-[#EFF6FF] text-[#1D4ED8]' : 'bg-[#F1F5F9] text-[#475569]'}`}>
                 {ticket.clientType === 'external' ? 'Клиентская' : 'Внутренняя'}
+              </span>
+              {/* Contract type */}
+              <span className="h-6 px-2 rounded-md text-[11px] font-medium bg-[#F8FAFC] text-[#475569]">
+                {CONTRACT_LABELS[ticket.contractType]}
               </span>
               {slaDisplay && (
                 <span className="h-6 px-2 rounded-md text-[11px] font-medium flex items-center gap-1" style={{ backgroundColor: slaDisplay.bg, color: slaDisplay.color }}>
@@ -138,6 +155,12 @@ export function TicketDetail() {
                 <button onClick={() => setTransferTarget(ticket)}
                   className="h-9 px-3 rounded-xl border border-[#E6EBF2] bg-white text-[13px] text-[#111827] hover:bg-[#F8FAFF]">
                   Передать
+                </button>
+              )}
+              {hasPermission(role, 'ai') && (
+                <button onClick={() => setSuflerTarget(ticket)}
+                  className="h-9 px-3 rounded-xl bg-gradient-to-r from-[#8B5CF6] to-[#2563EB] text-white text-[13px] font-medium flex items-center gap-2 hover:opacity-90">
+                  <Sparkles size={14} /> Суфлёр AI
                 </button>
               )}
               {hasPermission(role, 'close') && (
@@ -413,6 +436,125 @@ export function TicketDetail() {
                 Переназначить
               </button>
             )}
+          </div>
+
+          {/* Taxonomy */}
+          <div className="bg-white rounded-2xl border border-[#E6EBF2] p-4">
+            <h4 className="text-[13px] font-semibold text-[#6B7280] mb-3">Таксономия</h4>
+            {(() => {
+              const tax = getTaxonomyType(ticket.taxonomyTypeId);
+              const grp = tax ? getTaxonomyGroup(tax.groupId) : null;
+              if (!tax) return <p className="text-[12px] text-[#EF4444]">Не задана</p>;
+              return (
+                <div className="space-y-2">
+                  <div className="flex justify-between">
+                    <span className="text-[12px] text-[#6B7280]">Группа</span>
+                    <span className="text-[12px] text-[#111827]">{grp?.name}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-[12px] text-[#6B7280]">Тип</span>
+                    <span className="text-[12px] text-[#111827]">{tax.name}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-[12px] text-[#6B7280]">Плановое время</span>
+                    <span className="text-[12px] font-semibold text-[#111827]">{tax.plannedTime} ч</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-[12px] text-[#6B7280]">Подтверждение</span>
+                    <span className={`text-[12px] ${ticket.taxonomyConfirmed ? 'text-[#10B981]' : 'text-[#F59E0B]'}`}>
+                      {ticket.taxonomyConfirmed ? '✓ Подтверждён' : '⚠ Требует подтверждения'}
+                    </span>
+                  </div>
+                </div>
+              );
+            })()}
+          </div>
+
+          {/* Executor Priority */}
+          <div className="bg-white rounded-2xl border border-[#E6EBF2] p-4">
+            <h4 className="text-[13px] font-semibold text-[#6B7280] mb-3">Приоритет исполнителя</h4>
+            <div className="space-y-2">
+              {(() => { const p = EXECUTOR_PRIORITY_CONFIG[ticket.executorPriority || 'none']; return (
+                <>
+                  <div className="flex justify-between">
+                    <span className="text-[12px] text-[#6B7280]">Текущий</span>
+                    <span className="text-[12px] font-semibold" style={{ color: p.color }}>{p.label}</span>
+                  </div>
+                  {ticket.executorPrioritySetBy && (
+                    <div className="flex justify-between">
+                      <span className="text-[12px] text-[#6B7280]">Установил</span>
+                      <span className="text-[12px] text-[#111827]">{ticket.executorPrioritySetBy}</span>
+                    </div>
+                  )}
+                  <p className="text-[11px] text-[#9CA3AF] mt-2">Приоритет задаёт исполнитель исходя из своего плана дня</p>
+                </>
+              ); })()}
+            </div>
+          </div>
+
+          {/* Load impact */}
+          <div className="bg-white rounded-2xl border border-[#E6EBF2] p-4">
+            <h4 className="text-[13px] font-semibold text-[#6B7280] mb-3">Влияние на загрузку</h4>
+            {(() => {
+              const tax = getTaxonomyType(ticket.taxonomyTypeId);
+              const pt = tax?.plannedTime || 1;
+              const sw = STATUS_WEIGHTS[ticket.status];
+              const pw = EXECUTOR_PRIORITY_CONFIG[ticket.executorPriority || 'none'].weight;
+              const impact = pt * sw * pw;
+              return (
+                <div className="space-y-1.5 text-[12px]">
+                  <div className="flex justify-between"><span className="text-[#6B7280]">Плановое время:</span><span className="text-[#111827] font-medium">{pt} ч</span></div>
+                  <div className="flex justify-between"><span className="text-[#6B7280]">Вес статуса ({STATUS_CONFIG[ticket.status].label}):</span><span className="text-[#111827] font-mono">{sw}</span></div>
+                  <div className="flex justify-between"><span className="text-[#6B7280]">Вес приоритета:</span><span className="text-[#111827] font-mono">{pw}</span></div>
+                  <div className="flex justify-between pt-1.5 border-t border-[#E6EBF2]"><span className="text-[#6B7280] font-medium">Вклад в КЗ:</span><span className="text-[#111827] font-bold">{impact.toFixed(2)} ч</span></div>
+                </div>
+              );
+            })()}
+          </div>
+
+          {/* Calls */}
+          {ticket.calls.length > 0 && (
+            <div className="bg-white rounded-2xl border border-[#E6EBF2] p-4">
+              <h4 className="text-[13px] font-semibold text-[#6B7280] mb-3 flex items-center gap-1.5">
+                <Phone size={14} /> Звонки ({ticket.calls.length})
+              </h4>
+              <div className="space-y-2">
+                {ticket.calls.slice(0, 3).map(call => (
+                  <div key={call.id} className="p-2 rounded-lg bg-[#F8FAFC] text-[11px]">
+                    <div className="flex items-center gap-2">
+                      <span>{call.direction === 'incoming' ? '📥' : call.direction === 'outgoing' ? '📤' : '❌'}</span>
+                      <span className="text-[#111827] font-medium">{call.contact}</span>
+                    </div>
+                    <div className="flex items-center gap-2 mt-1 text-[#6B7280]">
+                      <span>{call.duration} мин</span>
+                      <span>•</span>
+                      <span className={call.analysisStatus === 'analyzed' ? 'text-[#8B5CF6]' : ''}>
+                        {call.analysisStatus === 'analyzed' ? '✨ AI проанализирован' : call.analysisStatus === 'transcribing' ? '⏳ Транскрибация' : 'Не анализировался'}
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* AI */}
+          <div className="bg-gradient-to-br from-[#8B5CF6]/5 to-[#2563EB]/5 rounded-2xl border border-[#8B5CF6]/20 p-4">
+            <h4 className="text-[13px] font-semibold text-[#111827] mb-3 flex items-center gap-1.5">
+              <Sparkles size={14} className="text-[#8B5CF6]" /> AI-помощник
+            </h4>
+            <div className="space-y-1.5">
+              <button onClick={() => setSuflerTarget(ticket)} className="w-full h-8 rounded-lg bg-white border border-[#E6EBF2] text-[12px] text-[#111827] hover:bg-[#F8FAFF] flex items-center gap-2 px-3">
+                <Sparkles size={12} className="text-[#8B5CF6]" /> Суфлёр AI
+              </button>
+              <button onClick={() => addToast('Суммаризация запущена (демо)', 'info')} className="w-full h-8 rounded-lg bg-white border border-[#E6EBF2] text-[12px] text-[#111827] hover:bg-[#F8FAFF] px-3 text-left">
+                Суммаризировать
+              </button>
+              <button onClick={() => addToast('Черновик итога предложен (демо)', 'info')} className="w-full h-8 rounded-lg bg-white border border-[#E6EBF2] text-[12px] text-[#111827] hover:bg-[#F8FAFF] px-3 text-left">
+                Черновик итога
+              </button>
+            </div>
+            <p className="text-[10px] text-[#9CA3AF] mt-2">Демо-режим, без реального AI</p>
           </div>
 
           {/* Parameters */}
